@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ZenseHome",
+        "description": "Forbind til ZenseHome PC-boks via TCP.",
+        "data": {
+          "host": "IP-adresse",
+          "code": "Login-kode",
+          "port": "Port"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ZenseHome indstillinger",
+        "description": "entity_types_json er et JSON-objekt hvor nøgle er device-id og værdi er \"light\" eller \"switch\". Eksempel: {\"83190\":\"switch\"}",
+        "data": {
+          "poll_minutes": "Polling (minutter)",
+          "entity_types_json": "Entity-typer (JSON)"
+        }
+      }
+    }
+  }
+}
