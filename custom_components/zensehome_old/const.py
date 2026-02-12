@@ -14,10 +14,12 @@ DEFAULT_PORT = 10001
 DEFAULT_POLLING_MINUTES = 10
 DEFAULT_CMD_GAP = 0.2          # lidt højere end 0.10 for mindre pres
 DEFAULT_DEBOUNCE_S = 0.5        # øget fra 0.2
+BRIGHTNESS_SCALE = 100
+
 
 PLATFORMS = ["light", "switch"]
 
-# Heuristik keywords til "switch" hvis ikke mappet
+# keywords til "switch" hvis ikke mappet
 SWITCH_NAME_KEYWORDS = (
     "stik",
     "kontakt",
