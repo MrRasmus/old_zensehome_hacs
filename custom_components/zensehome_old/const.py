@@ -1,4 +1,4 @@
-DOMAIN = "zensehome"
+DOMAIN = "zensehome_old"
 
 CONF_HOST = "host"
 CONF_PORT = "port"
@@ -12,7 +12,7 @@ DEFAULT_PORT = 10001
 
 # Interne defaults
 DEFAULT_POLLING_MINUTES = 10
-DEFAULT_CMD_GAP = 0.2          # lidt højere end 0.10 for mindre pres
+DEFAULT_CMD_GAP_S = 0.2          # lidt højere end 0.10 for mindre pres
 DEFAULT_DEBOUNCE_S = 0.5        # øget fra 0.2
 BRIGHTNESS_SCALE = 100
 
