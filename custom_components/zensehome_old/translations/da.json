@@ -18,7 +18,7 @@
         "title": "ZenseHome indstillinger",
         "description": "entity_types_json er et JSON-objekt hvor nøgle er device-id og værdi er \"light\" eller \"switch\". Eksempel: {\"83190\":\"switch\"}",
         "data": {
-          "poll_minutes": "Polling (minutter)",
+          "polling_minutes": "Polling (minutter)",
           "entity_types_json": "Entity-typer (JSON)"
         }
       }

@@ -95,8 +95,9 @@ class ZenseClient:
             if not chunk:
                 break
             buf += chunk.decode(errors="replace")
-            if buf.endswith("<<"):
-                break
+            if "<<" in buf:
+                idx = buf.find("<<")
+                return buf[: idx + 2]
         return buf
 
     async def _send_raw(self, cmd: str) -> str:
@@ -113,6 +114,7 @@ class ZenseClient:
         resp = await self._send_raw(f">>Login {self.code}<<")
         if ">>Login Ok<<" in resp:
             self._logged_in = True
+            await asyncio.sleep(0.2)
             return True
         await self._close()
         return False
@@ -184,8 +186,11 @@ class ZenseClient:
 
     async def async_test_connection(self, hass: HomeAssistant) -> bool:
         try:
+            ok = await self._login()
+            if not ok:
+                return False
             ids = await self.get_devices()
-            return len(ids) > 0
+            return True if ids is not None else False
         finally:
             await self._close()
 
