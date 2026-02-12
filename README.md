@@ -2,6 +2,11 @@
 
 Integrerer ZenseHome PC-boks (TCP/ASCII API) direkte i Home Assistant som native `light` og `switch`.
 
+## Ansvarsfraskrivelse
+Denne kode leveres "som den er", uden nogen form for garanti. Du bruger den på eget ansvar.
+Jeg tager ikke ansvar for skader, datatab, driftstop eller andre direkte/indirekte konsekvenser,
+der kan opstå ved brug af koden eller integrationen.
+
 ## Installation via HACS (Custom repository)
 1. HACS → Integrations → menu (⋮) → Custom repositories
 2. Tilføj dette repo som type **Integration**
@@ -27,23 +32,13 @@ Eksempel:
   "17861": "switch",
   "57541": "light"
 }
-
+```
 Hvis en enhed ikke står i JSON, gættes type ud fra navnet (fx “stik/kontakt/ventilation” -> switch).
----
 
+---
 ## Hvordan du ændrer “kontakt vs lys” i UI
 Efter installation:
 - Settings → Devices & services → ZenseHome → **Configure**
 - Sæt `entity_types_json` som vist, gem
 - Genindlæs integrationen (HA gør det typisk automatisk; ellers genstart)
-
 ---
-
-## Bemærkninger om “korrekt async”
-- TCP-kald er fuldt async via `asyncio.open_connection`
-- Der er en `asyncio.Lock()` så der kun er **én session ad gangen** (som Zense kræver)
-- Polling kører via `DataUpdateCoordinator` hvert N minutter
-- Kommandoer opdaterer state lokalt med det samme og sync’er igen ved næste poll
-
-Hvis du vil have en pænere Options-UI (dropdown pr enhed med navn i stedet for JSON), kan det laves som næste iteration.
-::contentReference[oaicite:0]{index=0}

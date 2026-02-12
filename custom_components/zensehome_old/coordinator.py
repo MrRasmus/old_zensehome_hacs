@@ -1,32 +1,41 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import timedelta
-from typing import Dict, List
+from typing import Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import ZenseApi, ZenseDevice
-from .const import DOMAIN
+from .api import ZenseClient
 
-class ZenseCoordinator(DataUpdateCoordinator[Dict[int, int]]):
-    def __init__(self, hass: HomeAssistant, api: ZenseApi, devices: List[ZenseDevice], poll_minutes: int):
+
+@dataclass(frozen=True)
+class ZenseDevice:
+    did: int
+    name: str
+
+
+class ZenseCoordinator(DataUpdateCoordinator[dict[int, Optional[int]]]):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: ZenseClient,
+        devices: list[ZenseDevice],
+        polling_seconds: int,
+    ) -> None:
+        self.client = client
+        self.devices = devices
         super().__init__(
             hass=hass,
-            logger=None,
-            name=DOMAIN,
-            update_interval=timedelta(minutes=max(1, int(poll_minutes))),
+            logger=client.logger,
+            name="zensehome_old",
+            update_interval=timedelta(seconds=int(polling_seconds)),
         )
-        self.api = api
-        self.devices = devices
 
-    async def _async_update_data(self) -> Dict[int, int]:
+    async def _async_update_data(self) -> dict[int, Optional[int]]:
         try:
-            data: Dict[int, int] = {}
-            for dev in self.devices:
-                lvl = await self.api.get_level(dev.did)
-                if lvl is not None:
-                    data[dev.did] = int(lvl)
-            return data
+            ids = [d.did for d in self.devices]
+            return await self.client.async_get_levels(self.hass, ids)
         except Exception as e:
             raise UpdateFailed(str(e)) from e

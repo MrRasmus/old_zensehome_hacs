@@ -1,52 +1,75 @@
 from __future__ import annotations
 
 import json
-from typing import Dict, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .api import ZenseApi
-from .coordinator import ZenseCoordinator
-from .const import DOMAIN, PLATFORMS, CONF_HOST, CONF_PORT, CONF_CODE, DEFAULT_POLL_MIN, OPT_POLL_MIN, OPT_ENTITY_TYPES
+from .const import (
+    DOMAIN,
+    PLATFORMS,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_CODE,
+    CONF_POLLING_MINUTES,
+    CONF_ENTITY_TYPES_JSON,
+    DEFAULT_POLLING_MINUTES,
+)
+from .coordinator import ZenseCoordinator, ZenseDevice
+from .api import ZenseClient
+
+
+def _parse_entity_map(entry: ConfigEntry) -> dict[int, str]:
+    s = (entry.options.get(CONF_ENTITY_TYPES_JSON) or "").strip()
+    if not s:
+        return {}
+    try:
+        data = json.loads(s)
+        if not isinstance(data, dict):
+            return {}
+        out: dict[int, str] = {}
+        for k, v in data.items():
+            try:
+                did = int(str(k).strip())
+            except Exception:
+                continue
+            t = str(v).lower().strip()
+            if t in ("light", "switch"):
+                out[did] = t
+        return out
+    except Exception:
+        return {}
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
     code = entry.data[CONF_CODE]
 
-    poll_minutes = entry.options.get(OPT_POLL_MIN, DEFAULT_POLL_MIN)
-    types_json = entry.options.get(OPT_ENTITY_TYPES, "{}")
-    try:
-        entity_types: Dict[str, str] = json.loads(types_json) if types_json else {}
-        if not isinstance(entity_types, dict):
-            entity_types = {}
-    except Exception:
-        entity_types = {}
+    polling_minutes = int(entry.options.get(CONF_POLLING_MINUTES, DEFAULT_POLLING_MINUTES))
+    polling_seconds = max(30, polling_minutes * 60)
 
-    api = ZenseApi(host=host, port=port, code=code)
-    devices = await api.discover()
+    client = ZenseClient(host, port, code)
+    devices_map = await client.async_get_devices_and_names(hass)
+    devices = [ZenseDevice(did=k, name=v) for k, v in sorted(devices_map.items())]
 
-    coordinator = ZenseCoordinator(hass, api, devices, poll_minutes)
+    coordinator = ZenseCoordinator(hass, client, devices, polling_seconds)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
-        "api": api,
-        "devices": devices,
+        "client": client,
         "coordinator": coordinator,
-        "entity_types": entity_types,  # {"57541": "switch"}
+        "devices": devices,
+        "entity_map": _parse_entity_map(entry),
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if ok:
-        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    if ok and DOMAIN in hass.data:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
     return ok
-
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)

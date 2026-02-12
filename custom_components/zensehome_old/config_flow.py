@@ -4,78 +4,93 @@ import json
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     DOMAIN,
-    CONF_HOST, CONF_PORT, CONF_CODE,
-    DEFAULT_PORT, DEFAULT_POLL_MIN,
-    OPT_POLL_MIN, OPT_ENTITY_TYPES,
+    CONF_CODE,
+    DEFAULT_PORT,
+    CONF_POLLING_MINUTES,
+    CONF_ENTITY_TYPES_JSON,
+    DEFAULT_POLLING_MINUTES,
 )
+from .api import ZenseClient
 
-class ZenseHomeFlow(config_entries.ConfigFlow, domain=DOMAIN):
+
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
-        if user_input is None:
-            schema = vol.Schema({
-                vol.Required(CONF_HOST): str,
-                vol.Optional(CONF_PORT, default=DEFAULT_PORT): int,
-                vol.Required(CONF_CODE): int,
-            })
-            return self.async_show_form(step_id="user", data_schema=schema)
+    async def async_step_user(self, user_input=None) -> FlowResult:
+        errors = {}
 
-        await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
-        self._abort_if_unique_id_configured()
-        return self.async_create_entry(
-            title=f"ZenseHome ({user_input[CONF_HOST]})",
-            data=user_input,
-            options={
-                OPT_POLL_MIN: DEFAULT_POLL_MIN,
-                OPT_ENTITY_TYPES: "{}",
-            },
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            port = user_input[CONF_PORT]
+            code = user_input[CONF_CODE]
+
+            client = ZenseClient(host, port, code)
+            ok = await client.async_test_connection(self.hass)
+
+            if ok:
+                await self.async_set_unique_id(f"{DOMAIN}_{host}_{port}_{code}")
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=f"ZenseHome ({host})",
+                    data=user_input,
+                )
+
+            errors["base"] = "cannot_connect"
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST): str,
+                vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+                vol.Required(CONF_CODE): int,
+            }
         )
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
     @staticmethod
-    @callback
     def async_get_options_flow(config_entry):
-        return ZenseHomeOptionsFlow(config_entry)
+        return OptionsFlowHandler(config_entry)
 
-class ZenseHomeOptionsFlow(config_entries.OptionsFlow):
-    def __init__(self, entry: config_entries.ConfigEntry):
-        self.entry = entry
+
+class OptionsFlowHandler(config_entries.OptionsFlow):
+    def __init__(self, config_entry):
+        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
-        current_poll = int(self.entry.options.get(OPT_POLL_MIN, DEFAULT_POLL_MIN))
-        current_types = self.entry.options.get(OPT_ENTITY_TYPES, "{}")
-        try:
-            json.loads(current_types or "{}")
-        except Exception:
-            current_types = "{}"
+        errors = {}
 
-        if user_input is None:
-            schema = vol.Schema({
-                vol.Optional(OPT_POLL_MIN, default=current_poll): int,
+        if user_input is not None:
+            s = (user_input.get(CONF_ENTITY_TYPES_JSON) or "").strip()
+            if s:
+                try:
+                    parsed = json.loads(s)
+                    if not isinstance(parsed, dict):
+                        raise ValueError
+                    for v in parsed.values():
+                        if str(v).lower().strip() not in ("light", "switch"):
+                            raise ValueError
+                except Exception:
+                    errors["base"] = "invalid_json"
+                else:
+                    return self.async_create_entry(title="", data=user_input)
+            else:
+                return self.async_create_entry(title="", data=user_input)
+
+        cur = self.config_entry.options
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_POLLING_MINUTES,
+                    default=int(cur.get(CONF_POLLING_MINUTES, DEFAULT_POLLING_MINUTES)),
+                ): vol.Coerce(int),
                 vol.Optional(
-                    OPT_ENTITY_TYPES,
-                    default=current_types,
-                    description={"suggested_value": current_types},
+                    CONF_ENTITY_TYPES_JSON,
+                    default=str(cur.get(CONF_ENTITY_TYPES_JSON, "") or ""),
                 ): str,
-            })
-            return self.async_show_form(step_id="init", data_schema=schema)
-
-        types_str = (user_input.get(OPT_ENTITY_TYPES) or "{}").strip()
-        try:
-            parsed = json.loads(types_str)
-            if not isinstance(parsed, dict):
-                types_str = "{}"
-        except Exception:
-            types_str = "{}"
-
-        return self.async_create_entry(
-            title="",
-            data={
-                OPT_POLL_MIN: int(user_input.get(OPT_POLL_MIN, current_poll)),
-                OPT_ENTITY_TYPES: types_str,
-            },
+            }
         )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

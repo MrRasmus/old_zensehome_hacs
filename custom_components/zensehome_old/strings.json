@@ -1,27 +1,33 @@
 {
+  "title": "ZenseHome_Old (TCP)",
   "config": {
     "step": {
       "user": {
-        "title": "ZenseHome",
-        "description": "Forbind til ZenseHome PC-boks via TCP.",
+        "title": "Forbind til Zense",
+        "description": "Indtast IP/host, port og login-kode.",
         "data": {
-          "host": "IP-adresse",
-          "code": "Login-kode",
-          "port": "Port"
+          "host": "Host/IP",
+          "port": "Port",
+          "code": "Login-kode"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Kan ikke forbinde eller logge ind."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "ZenseHome indstillinger",
-        "description": "entity_types_json er et JSON-objekt hvor nøgle er device-id og værdi er \"light\" eller \"switch\". Eksempel: {\"83190\":\"switch\"}",
+        "title": "Indstillinger",
         "data": {
-          "poll_minutes": "Polling (minutter)",
+          "polling_minutes": "Polling (minutter)",
           "entity_types_json": "Entity-typer (JSON)"
         }
       }
+    },
+    "error": {
+      "invalid_json": "Ugyldig JSON (skal være et objekt med værdier 'light' eller 'switch')."
     }
   }
 }
