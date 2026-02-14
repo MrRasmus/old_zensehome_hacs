@@ -1,4 +1,6 @@
 # ZenseHome (Home Assistant integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=MrRasmus&repository=old_zensehome_hacs&category=integration)
+
 
 Integrerer ZenseHome PC-boks (TCP/ASCII API) direkte i Home Assistant som native `light` og `switch`.
 
