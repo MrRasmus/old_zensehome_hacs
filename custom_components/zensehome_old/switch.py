@@ -4,10 +4,11 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SWITCH_NAME_KEYWORDS
-from .coordinator import ZenseCoordinator, ZenseDevice
 from .api import ZenseClient
+from .const import DOMAIN, SWITCH_NAME_KEYWORDS, BRIGHTNESS_SCALE
+from .coordinator import ZenseCoordinator, ZenseDevice
 
 
 def _guess_is_switch(name: str) -> bool:
@@ -32,24 +33,22 @@ async def async_setup_entry(
         if mapped == "light":
             continue
         if mapped == "switch" or (mapped is None and _guess_is_switch(dev.name)):
-            ents.append(ZenseSwitch(hass, entry, client, coordinator, dev))
+            ents.append(ZenseSwitch(entry, client, coordinator, dev))
 
     async_add_entities(ents)
 
 
-class ZenseSwitch(SwitchEntity):
+class ZenseSwitch(CoordinatorEntity[ZenseCoordinator], SwitchEntity):
     def __init__(
         self,
-        hass: HomeAssistant,
         entry: ConfigEntry,
         client: ZenseClient,
         coordinator: ZenseCoordinator,
         dev: ZenseDevice,
     ) -> None:
-        self.hass = hass
+        super().__init__(coordinator)
         self.entry = entry
         self.client = client
-        self.coordinator = coordinator
         self.dev = dev
 
         self._attr_name = f"{dev.name} (Zense)"
@@ -62,18 +61,20 @@ class ZenseSwitch(SwitchEntity):
         }
 
     @property
-    def available(self) -> bool:
-        return self.coordinator.last_update_success
-
-    @property
     def is_on(self) -> bool:
-        lvl = self.coordinator.data.get(self.dev.did)
+        lvl = (self.coordinator.data or {}).get(self.dev.did)
         return bool(lvl and lvl > 0)
 
     async def async_turn_off(self, **kwargs) -> None:
         await self.client.set_off(self.dev.did)
-        await self.coordinator.async_request_refresh()
+
+        data = dict(self.coordinator.data or {})
+        data[self.dev.did] = 0
+        self.coordinator.async_set_updated_data(data)
 
     async def async_turn_on(self, **kwargs) -> None:
         await self.client.set_on(self.dev.did)
-        await self.coordinator.async_request_refresh()
+
+        data = dict(self.coordinator.data or {})
+        data[self.dev.did] = BRIGHTNESS_SCALE
+        self.coordinator.async_set_updated_data(data)

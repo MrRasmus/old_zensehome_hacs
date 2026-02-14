@@ -81,16 +81,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=user_input)
 
         cur = self.config_entry.options
+
+        poll_val = cur.get(CONF_POLLING_MINUTES, DEFAULT_POLLING_MINUTES)
+        try:
+            poll_default = int(poll_val)
+        except Exception:
+            poll_default = DEFAULT_POLLING_MINUTES
+
+        ent_default = cur.get(CONF_ENTITY_TYPES_JSON, "")
+        if ent_default is None:
+            ent_default = ""
+        ent_default = str(ent_default)
+
         schema = vol.Schema(
             {
-                vol.Required(
-                    CONF_POLLING_MINUTES,
-                    default=int(cur.get(CONF_POLLING_MINUTES, DEFAULT_POLLING_MINUTES)),
-                ): vol.Coerce(int),
-                vol.Optional(
-                    CONF_ENTITY_TYPES_JSON,
-                    default=str(cur.get(CONF_ENTITY_TYPES_JSON, "") or ""),
-                ): str,
+                vol.Required(CONF_POLLING_MINUTES, default=poll_default): vol.Coerce(int),
+                vol.Optional(CONF_ENTITY_TYPES_JSON, default=ent_default): str,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

@@ -160,10 +160,15 @@ class ZenseClient:
         return []
 
     async def get_name(self, did: int) -> str:
-        resp = await self.send_command(f">>Get Name {did}<<")
-        if ">>Get Name " in resp:
-            return resp.split(">>Get Name ", 1)[1].split("<<", 1)[0].strip().strip("'")
+        for _ in range(3):
+            resp = await self.send_command(f">>Get Name {did}<<")
+            if ">>Get Name " in resp:
+                nm = resp.split(">>Get Name ", 1)[1].split("<<", 1)[0].strip().strip("'")
+                if nm and nm.lower() != "timeout":
+                    return nm
+            await asyncio.sleep(0.15)
         return f"Device_{did}"
+
 
     async def get_level(self, did: int) -> Optional[int]:
         resp = await self.send_command(f">>Get {did}<<")
@@ -190,7 +195,7 @@ class ZenseClient:
             if not ok:
                 return False
             ids = await self.get_devices()
-            return True if ids is not None else False
+            return len(ids) > 0
         finally:
             await self._close()
 
@@ -199,6 +204,7 @@ class ZenseClient:
         out: dict[int, str] = {}
         for did in ids:
             out[did] = await self.get_name(did)
+            await asyncio.sleep(0.05)
         return out
 
     async def async_get_levels(self, hass: HomeAssistant, ids: list[int]) -> dict[int, Optional[int]]:
