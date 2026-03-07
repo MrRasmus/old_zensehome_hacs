@@ -35,9 +35,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if ok:
                 await self.async_set_unique_id(f"{DOMAIN}_{host}_{port}_{code}")
                 self._abort_if_unique_id_configured()
+
+                devices_map = await client.async_get_devices_and_names(self.hass)
+
                 return self.async_create_entry(
                     title=f"ZenseHome ({host})",
-                    data=user_input,
+                    data={
+                        **user_input,
+                        "devices": [
+                            {"did": did, "name": name}
+                            for did, name in sorted(devices_map.items())
+                        ],
+                    },
                 )
 
             errors["base"] = "cannot_connect"

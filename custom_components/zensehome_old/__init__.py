@@ -50,8 +50,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     polling_seconds = max(30, polling_minutes * 60)
 
     client = ZenseClient(host, port, code)
-    devices_map = await client.async_get_devices_and_names(hass)
-    devices = [ZenseDevice(did=k, name=v) for k, v in sorted(devices_map.items())]
+
+    stored_devices = entry.data.get("devices", [])
+    stored_map: dict[int, str] = {}
+
+    for dev in stored_devices:
+        try:
+            stored_map[int(dev["did"])] = str(dev["name"])
+        except Exception:
+            continue
+
+    try:
+        current_ids = await client.get_devices()
+    except Exception:
+        current_ids = []
+
+    if not stored_map and current_ids:
+        devices_map = await client.async_get_devices_and_names(hass)
+        stored_map = {int(did): str(name) for did, name in devices_map.items()}
+    elif current_ids:
+        new_ids = [did for did in current_ids if did not in stored_map]
+        if new_ids:
+            for did in new_ids:
+                stored_map[did] = await client.get_name(did)
+
+            hass.config_entries.async_update_entry(
+                entry,
+                data={
+                    **entry.data,
+                    "devices": [
+                        {"did": did, "name": name}
+                        for did, name in sorted(stored_map.items())
+                    ],
+                },
+            )
+
+    devices = [ZenseDevice(did=did, name=name) for did, name in sorted(stored_map.items())]
 
     coordinator = ZenseCoordinator(hass, client, devices, polling_seconds)
     await coordinator.async_config_entry_first_refresh()
