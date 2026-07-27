@@ -16,10 +16,10 @@
     "step": {
       "init": {
         "title": "ZenseHome indstillinger",
-        "description": "entity_types_json er et JSON-objekt hvor nøgle er device-id og værdi er \"light\" eller \"switch\". Eksempel: {\"83190\":\"switch\"}",
+        "description": "entity_types_json er et JSON-objekt hvor nøgle er device-id og værdi er \"dimmer\", \"light\" eller \"switch\". Eksempel: {\"17861\":\"dimmer\",\"85723\":\"light\",\"6539\":\"switch\"}",
         "data": {
           "polling_minutes": "Polling (minutter)",
-          "entity_types_json": "Entity-typer (JSON)"
+          "entity_types_json": "Entity-typer JSON: dimmer, light eller switch"
         }
       }
     }

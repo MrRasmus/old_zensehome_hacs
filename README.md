@@ -24,18 +24,22 @@ Indtast:
 
 ## Indstillinger (Options)
 - Polling (minutter): fx 10 (opdaterer status ved vægtryk)
-- Entity-typer (JSON): map enheder til light/switch
+- Entity-typer (JSON): map enheder til `dimmer`, `light` eller `switch`
+
+Typer:
+- `dimmer` = dæmpbar lampe, vises som light med brightness
+- `light` = almindelig on/off-lampe uden brightness/dimmer
+- `switch` = stikkontakt, relæ, ventilation, subwoofer osv.
 
 Eksempel:
 ```json
-
 {
-  "83190": "switch",
-  "17861": "switch",
-  "57541": "light"
+  "17861": "dimmer",
+  "85723": "light",
+  "6539": "switch"
 }
 ```
-Hvis en enhed ikke står i JSON, gættes type ud fra navnet (fx “stik/kontakt/ventilation” -> switch).
+Hvis en enhed ikke står i JSON, gættes type ud fra navnet (fx “stik/kontakt/ventilation” -> switch). Umapppede lights bevarer gammel opførsel og vises som dimbare for bagudkompatibilitet.
 
 ---
 ## Hvordan du ændrer “kontakt vs lys” i UI
@@ -63,3 +67,48 @@ Denne branch tilføjer en mere HomeKit/Siri-venlig kommandohåndtering:
 - Dimming bevarer debounce, så hurtige brightness-ændringer samles til én ZenseHome `Fade`-kommando.
 - `button.pause_zense_5_min` pauser polling i 5 minutter uden at blokere manuelle kommandoer.
 
+
+## Version 1.2.0 - dimmer/light/switch mapping
+
+Denne version udvider `entity_types_json`, så `light` ikke længere betyder “dæmpbar lampe”. Brug nu:
+
+- `dimmer` til Zense LPD/DSD-udtag, som reelt kan dæmpes.
+- `light` til relæstyrede lamper, der skal vises som lamper i Home Assistant/HomeKit, men uden brightness.
+- `switch` til stikkontakter, subwoofer, ventilation og andet udstyr.
+
+Det bevarer `unique_id` for enheder, der fortsat er `LightEntity`. Det betyder, at en lampe kan ændres fra `dimmer` til `light` uden at miste sit Home Assistant entity-id/navn. Enheder der flyttes fra `light` til `switch` får en ny switch-entity, fordi platformen ændres.
+
+Eksempel på komplet mapping baseret på den kendte installation:
+
+```json
+{
+  "17861": "dimmer",
+  "85723": "light",
+  "85740": "light",
+  "36704": "light",
+  "83166": "dimmer",
+  "62354": "dimmer",
+  "85720": "light",
+  "85731": "light",
+  "83186": "dimmer",
+  "4151": "dimmer",
+  "6537": "switch",
+  "6542": "switch",
+  "6191": "switch",
+  "83375": "dimmer",
+  "57541": "dimmer",
+  "21324": "switch",
+  "6546": "switch",
+  "17830": "dimmer",
+  "6325": "switch",
+  "65613": "switch",
+  "18533": "switch",
+  "4149": "dimmer",
+  "6538": "switch",
+  "63437": "switch",
+  "83190": "dimmer",
+  "85722": "light",
+  "6324": "switch",
+  "6539": "switch"
+}
+```

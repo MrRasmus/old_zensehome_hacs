@@ -22,12 +22,13 @@
         "title": "Indstillinger",
         "data": {
           "polling_minutes": "Polling (minutter)",
-          "entity_types_json": "Entity-typer (JSON)"
-        }
+          "entity_types_json": "Entity-typer JSON: dimmer, light eller switch"
+        },
+        "description": "Map device-id til \"dimmer\" (dæmpbar lampe), \"light\" (on/off lampe uden dæmpning) eller \"switch\" (stikkontakt/relæ)."
       }
     },
     "error": {
-      "invalid_json": "Ugyldig JSON (skal være et objekt med værdier 'light' eller 'switch')."
+      "invalid_json": "Ugyldig JSON (skal være et objekt med værdier \"dimmer\", \"light\" eller \"switch\")."
     }
   }
 }

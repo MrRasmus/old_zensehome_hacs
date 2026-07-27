@@ -33,7 +33,7 @@ async def async_setup_entry(
     ents = []
     for dev in devices:
         mapped = entity_map.get(dev.did)
-        if mapped == "light":
+        if mapped in ("dimmer", "light"):
             continue
         if mapped == "switch" or (mapped is None and _guess_is_switch(dev.name)):
             ents.append(ZenseSwitch(entry, client, coordinator, dev))

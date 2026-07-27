@@ -20,6 +20,11 @@ from .const import (
 from .coordinator import ZenseCoordinator, ZenseDevice
 
 
+ENTITY_TYPE_DIMMER = "dimmer"
+ENTITY_TYPE_LIGHT = "light"
+ENTITY_TYPE_SWITCH = "switch"
+
+
 def _raw_to_ha(raw: int) -> int:
     raw = max(0, min(BRIGHTNESS_SCALE, int(raw)))
     return int(round((raw / BRIGHTNESS_SCALE) * 255))
@@ -33,6 +38,17 @@ def _ha_to_raw(ha: int) -> int:
 def _guess_is_switch(name: str) -> bool:
     n = (name or "").lower()
     return any(k in n for k in SWITCH_NAME_KEYWORDS)
+
+
+def _is_mapped_dimmer(mapped: Optional[str]) -> bool:
+    """Return whether a mapped light should expose brightness capability.
+
+    Backwards compatibility:
+    - Existing/unmapped Zense light entities stay dimmable, matching the old integration.
+    - New explicit `light` means on/off light without brightness.
+    - New explicit `dimmer` means light with brightness.
+    """
+    return mapped != ENTITY_TYPE_LIGHT
 
 
 async def async_setup_entry(
@@ -49,32 +65,36 @@ async def async_setup_entry(
     ents = []
     for dev in devices:
         mapped = entity_map.get(dev.did)
-        if mapped == "switch":
+        if mapped == ENTITY_TYPE_SWITCH:
             continue
         if mapped is None and _guess_is_switch(dev.name):
             continue
-        ents.append(ZenseLight(entry, client, coordinator, dev))
+        is_dimmable = _is_mapped_dimmer(mapped)
+        ents.append(ZenseLight(entry, client, coordinator, dev, is_dimmable=is_dimmable))
 
     async_add_entities(ents)
 
 
 class ZenseLight(CoordinatorEntity[ZenseCoordinator], LightEntity):
-    _attr_color_mode = ColorMode.BRIGHTNESS
-    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-
     def __init__(
         self,
         entry: ConfigEntry,
         client: ZenseClient,
         coordinator: ZenseCoordinator,
         dev: ZenseDevice,
+        *,
+        is_dimmable: bool,
     ) -> None:
         super().__init__(coordinator)
         self.entry = entry
         self.client = client
         self.dev = dev
+        self._is_dimmable = bool(is_dimmable)
 
         self._attr_name = f"{dev.name} (Zense)"
+        # Keep this stable to preserve renamed Home Assistant entities when a light
+        # changes from dimmable to on/off-only. Only switching platform to `switch`
+        # intentionally creates a new entity with a different unique_id suffix.
         self._attr_unique_id = f"{entry.entry_id}_{dev.did}_light"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
@@ -82,6 +102,13 @@ class ZenseLight(CoordinatorEntity[ZenseCoordinator], LightEntity):
             "manufacturer": "Zense",
             "model": "TCP Controller",
         }
+
+        if self._is_dimmable:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+        else:
+            self._attr_color_mode = ColorMode.ONOFF
+            self._attr_supported_color_modes = {ColorMode.ONOFF}
 
         self._debounce_s = float(DEFAULT_DEBOUNCE_S)
         self._reconcile_delay_s = float(DEFAULT_RECONCILE_DELAY_S)
@@ -102,6 +129,8 @@ class ZenseLight(CoordinatorEntity[ZenseCoordinator], LightEntity):
 
     @property
     def brightness(self) -> Optional[int]:
+        if not self._is_dimmable:
+            return None
         lvl = (self.coordinator.data or {}).get(self.dev.did)
         if lvl is None:
             return None
@@ -209,6 +238,21 @@ class ZenseLight(CoordinatorEntity[ZenseCoordinator], LightEntity):
     async def async_turn_on(self, **kwargs) -> None:
         seq = self._next_command_seq()
         old_level = self._current_level()
+
+        # On/off-only lights must not use Zense Fade, even if HomeKit or another
+        # caller accidentally includes brightness. Relay/UUR/DSR lights should be
+        # controlled with Set 100 / Set 0 only.
+        if not self._is_dimmable:
+            if self._pending_task:
+                self._pending_task.cancel()
+                self._pending_task = None
+                self._pending_level = None
+                self._pending_old_level = None
+                self._pending_seq = None
+
+            self._set_level_locally(BRIGHTNESS_SCALE)
+            self._schedule_send_and_reconcile(seq, "on", BRIGHTNESS_SCALE, old_level)
+            return
 
         if ATTR_BRIGHTNESS not in kwargs:
             if self._pending_task:

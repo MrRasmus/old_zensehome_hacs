@@ -34,7 +34,7 @@ def _parse_entity_map(entry: ConfigEntry) -> dict[int, str]:
             except Exception:
                 continue
             t = str(v).lower().strip()
-            if t in ("light", "switch"):
+            if t in ("dimmer", "light", "switch"):
                 out[did] = t
         return out
     except Exception:

@@ -80,7 +80,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     if not isinstance(parsed, dict):
                         raise ValueError
                     for v in parsed.values():
-                        if str(v).lower().strip() not in ("light", "switch"):
+                        if str(v).lower().strip() not in ("dimmer", "light", "switch"):
                             raise ValueError
                 except Exception:
                     errors["base"] = "invalid_json"
