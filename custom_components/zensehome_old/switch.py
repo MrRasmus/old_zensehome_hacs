@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from typing import Optional
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -7,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import ZenseClient
-from .const import DOMAIN, SWITCH_NAME_KEYWORDS, BRIGHTNESS_SCALE
+from .const import DOMAIN, SWITCH_NAME_KEYWORDS, BRIGHTNESS_SCALE, DEFAULT_RECONCILE_DELAY_S
 from .coordinator import ZenseCoordinator, ZenseDevice
 
 
@@ -50,6 +53,12 @@ class ZenseSwitch(CoordinatorEntity[ZenseCoordinator], SwitchEntity):
         self.entry = entry
         self.client = client
         self.dev = dev
+        self._reconcile_delay_s = float(DEFAULT_RECONCILE_DELAY_S)
+
+        # Monotonic per-entity command generation. This prevents old background
+        # commands, rollbacks or delayed get_level reconciles from overwriting a
+        # newer Home Assistant/Siri action when the user presses repeatedly.
+        self._command_seq = 0
 
         self._attr_name = f"{dev.name} (Zense)"
         self._attr_unique_id = f"{entry.entry_id}_{dev.did}_switch"
@@ -65,16 +74,94 @@ class ZenseSwitch(CoordinatorEntity[ZenseCoordinator], SwitchEntity):
         lvl = (self.coordinator.data or {}).get(self.dev.did)
         return bool(lvl and lvl > 0)
 
-    async def async_turn_off(self, **kwargs) -> None:
-        await self.client.set_off(self.dev.did)
+    def _next_command_seq(self) -> int:
+        self._command_seq += 1
+        return self._command_seq
 
+    def _is_current_command(self, seq: int) -> bool:
+        return seq == self._command_seq
+
+    def _current_level(self) -> Optional[int]:
+        return (self.coordinator.data or {}).get(self.dev.did)
+
+    def _set_level_locally(self, raw_level: Optional[int]) -> None:
         data = dict(self.coordinator.data or {})
-        data[self.dev.did] = 0
+        if raw_level is None:
+            data[self.dev.did] = None
+        else:
+            data[self.dev.did] = max(0, min(BRIGHTNESS_SCALE, int(raw_level)))
         self.coordinator.async_set_updated_data(data)
+
+    async def _send_and_reconcile(
+        self,
+        seq: int,
+        command: str,
+        new_level: int,
+        old_level: Optional[int],
+    ) -> None:
+        """Send the slow Zense command in the background and correct HA state afterwards.
+
+        The seq guard makes the optimistic state safe for repeated presses:
+        stale background tasks cannot roll back or reconcile over a newer command.
+        """
+        try:
+            if command == "off" or new_level <= 0:
+                ok = await self.client.set_off(self.dev.did)
+            else:
+                ok = await self.client.set_on(self.dev.did)
+
+            if not self._is_current_command(seq):
+                return
+
+            if not ok:
+                self.client.logger.warning(
+                    "ZenseHome switch command %s returned false for device %s; rolling back state",
+                    command,
+                    self.dev.did,
+                )
+                self._set_level_locally(old_level)
+                return
+
+            await asyncio.sleep(self._reconcile_delay_s)
+
+            if not self._is_current_command(seq):
+                return
+
+            real_level = await self.client.get_level(self.dev.did)
+
+            if not self._is_current_command(seq):
+                return
+
+            if real_level is not None:
+                self._set_level_locally(real_level)
+
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            self.client.logger.exception(
+                "ZenseHome switch command/reconcile failed for device %s; rolling back state",
+                self.dev.did,
+            )
+            if self._is_current_command(seq):
+                self._set_level_locally(old_level)
+
+    def _schedule_send_and_reconcile(
+        self,
+        seq: int,
+        command: str,
+        new_level: int,
+        old_level: Optional[int],
+    ) -> None:
+        self.hass.async_create_task(self._send_and_reconcile(seq, command, new_level, old_level))
+
+    async def async_turn_off(self, **kwargs) -> None:
+        seq = self._next_command_seq()
+        old_level = self._current_level()
+        self._set_level_locally(0)
+        self._schedule_send_and_reconcile(seq, "off", 0, old_level)
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self.client.set_on(self.dev.did)
-
-        data = dict(self.coordinator.data or {})
-        data[self.dev.did] = BRIGHTNESS_SCALE
-        self.coordinator.async_set_updated_data(data)
+        seq = self._next_command_seq()
+        old_level = self._current_level()
+        self._set_level_locally(BRIGHTNESS_SCALE)
+        self._schedule_send_and_reconcile(seq, "on", BRIGHTNESS_SCALE, old_level)

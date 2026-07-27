@@ -44,3 +44,22 @@ Efter installation:
 - Sæt `entity_types_json` som vist, gem
 - Genindlæs integrationen (HA gør det typisk automatisk; ellers genstart)
 ---
+
+## Version 1.1.0
+- Tilføjer `button.pause_zense_5_min`, som pauser polling af Zense-bussen i 5 minutter.
+- Gør `light` og `switch` mere HomeKit/Siri-venlige ved at opdatere Home Assistant-state optimistisk først og sende den langsomme Zense TCP-kommando i baggrunden.
+- Bevarer debounce på dæmpning, så gentagne brightness-ændringer ikke spammer Zense-bussen.
+
+## Branch: pause + optimistic state + reconcile + command sequence
+
+Denne branch tilføjer en mere HomeKit/Siri-venlig kommandohåndtering:
+
+- Home Assistant-state opdateres optimistisk med det samme.
+- Den langsomme ZenseHome TCP/ASCII-kommando sendes derefter i baggrunden.
+- Hvis kommandoen fejler, rulles state tilbage til forrige niveau.
+- Efter en kort forsinkelse køres `Get <device-id>` for at afstemme med den faktiske ZenseHome-status.
+- Hver entity har en intern `command_seq`, så gamle background tasks ikke kan overskrive nyere brugerhandlinger ved gentagne tryk.
+- Det eksisterende API-lock og rate-limit i `api.py` bevares, så ZenseHome-bussen stadig kun får én kommando ad gangen.
+- Dimming bevarer debounce, så hurtige brightness-ændringer samles til én ZenseHome `Fade`-kommando.
+- `button.pause_zense_5_min` pauser polling i 5 minutter uden at blokere manuelle kommandoer.
+

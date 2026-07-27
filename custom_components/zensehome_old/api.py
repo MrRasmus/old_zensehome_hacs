@@ -34,6 +34,10 @@ class ZenseClient:
 
         self._timeout_s = 12.0
 
+        # Pause is used to temporarily stop polling the slow Zense bus.
+        # Commands are still allowed, so Home Assistant / HomeKit can remain responsive.
+        self._paused_until = 0.0
+
     async def _close(self) -> None:
         try:
             if self._writer is not None:
@@ -188,6 +192,23 @@ class ZenseClient:
     async def fade(self, did: int, level: int) -> bool:
         level = max(0, min(BRIGHTNESS_SCALE, int(level)))
         return bool(await self.send_command(f">>Fade {did} {level}<<"))
+
+    @property
+    def paused(self) -> bool:
+        return time.monotonic() < self._paused_until
+
+    @property
+    def pause_remaining_s(self) -> int:
+        remaining = int(round(self._paused_until - time.monotonic()))
+        return max(0, remaining)
+
+    def pause_for(self, seconds: int = 300) -> None:
+        self._paused_until = max(self._paused_until, time.monotonic() + int(seconds))
+        self.logger.info("ZenseHome polling paused for %s seconds", seconds)
+
+    def resume(self) -> None:
+        self._paused_until = 0.0
+        self.logger.info("ZenseHome polling resumed")
 
     async def async_test_connection(self, hass: HomeAssistant) -> bool:
         try:

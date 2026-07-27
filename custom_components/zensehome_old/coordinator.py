@@ -34,6 +34,10 @@ class ZenseCoordinator(DataUpdateCoordinator[dict[int, Optional[int]]]):
         )
 
     async def _async_update_data(self) -> dict[int, Optional[int]]:
+        if self.client.paused:
+            # Keep optimistic HA state while the Zense bus is paused.
+            return dict(self.data or {})
+
         try:
             ids = [d.did for d in self.devices]
             return await self.client.async_get_levels(self.hass, ids)

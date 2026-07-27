@@ -10,16 +10,18 @@ CONF_ENTITY_TYPES_JSON = "entity_types_json"
 
 DEFAULT_PORT = 10001
 
-# Interne defaults
+# Internal defaults
 DEFAULT_POLLING_MINUTES = 10
-DEFAULT_CMD_GAP_S = 0.2          # lidt højere end 0.10 for mindre pres
-DEFAULT_DEBOUNCE_S = 0.5        # øget fra 0.2
+DEFAULT_CMD_GAP_S = 0.2          # slightly higher than 0.10 for less bus pressure
+DEFAULT_DEBOUNCE_S = 0.5         # debounce dimming changes
+DEFAULT_PAUSE_SECONDS = 300      # 5 minutes
+DEFAULT_RECONCILE_DELAY_S = 2.0 # delayed get_level after optimistic commands
 BRIGHTNESS_SCALE = 100
 
 
-PLATFORMS = ["light", "switch"]
+PLATFORMS = ["light", "switch", "button"]
 
-# keywords til "switch" hvis ikke mappet
+# Keywords for "switch" if not mapped in entity_types_json
 SWITCH_NAME_KEYWORDS = (
     "stik",
     "kontakt",

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+all_code.py
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Home Assistant local/runtime files
+.storage/
+.cloud/
+tts/
+deps/
+www/
+home-assistant.log*
+home-assistant_v2.db*
+*.db
+*.db-shm
+*.db-wal
+secrets.yaml
+known_devices.yaml
+ip_bans.yaml
+automations.yaml
+scripts.yaml
+scenes.yaml
+configuration.yaml
+
+# Archives / local exports
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+full_code.txt
+backup/
